@@ -790,6 +790,7 @@ Function ResetPassword{
     Revoke-MgBetaUserSignInSession -UserId $UPN | Out-Null
 }
 
+#Called in EnableOnlineArchive function to choose retention policy
 Function GetRetentionPolicy{
     # Fetch and display available retention policies
     Write-Host "`nAvailable Retention Policies:" -ForegroundColor Cyan
@@ -1008,8 +1009,73 @@ Function ExportUsersWithLicense{
     $UserData | Export-Csv -Path $ExportUsersCSV -NoTypeInformation
 }
 
-Function CheckDistributionGroups{}
-Function AddDistributionGroupstoUser{}
+#Called in CheckDistributionGroups
+Function AddUsertoDistributionGroup{
+    param (
+        [Parameter(Mandatory = $true)]  # Make the parameter mandatory
+        [string]$UPN
+    )
+
+    Write-Host ""
+}
+
+#Called in CheckDistributionGroups
+Function RemoveUsertoDistributionGroup{
+    param (
+        [Parameter(Mandatory = $true)]  # Make the parameter mandatory
+        [string]$UPN
+    )
+
+    Write-Host ""
+
+}
+
+Function CheckDistributionGroups{
+    # Call GetUPN and capture the returned hashtable
+    $UserDetails = GetUPN
+    if ($UserDetails -eq $null) {
+        Write-Host "No UPN provided or user not found. Exiting." -ForegroundColor Red
+        return
+    }
+
+    # Extract values from the hashtable
+    $UPN = $UserDetails.UPN
+    $User = $UserDetails.User
+    $UserId = $UserDetails.UserId
+    $Mailbox = $UserDetails.Mailbox
+    $MailboxAvailability = $UserDetails.MailboxAvailability
+
+    if($MailBoxAvailability -eq "Yes"){
+        $distributionGroups = Get-DistributionGroup | Where-Object { (Get-DistributionGroupMember -Identity $_.PrimarySmtpAddress | Select-Object -ExpandProperty PrimarySmtpAddress) -contains $UPN }
+        $distributionGroups | Select-Object Name, PrimarySmtpAddress
+
+        Write-Host "`nWe can perform below actions.`n"
+        Write-Host "           1.  Join to other existing distribution group" -ForegroundColor Yellow
+        Write-Host "           2.  Unjoin from distribution group" -ForegroundColor Yellow
+        Write-Host "           3.  Exit" -ForegroundColor Yellow
+        $Action = Read-Host "Please choose action to continue"
+        if($Action -eq ""){
+            Write-Host "`nPlease choose the action from the above." -ForegroundColor Red
+            Exit
+        }
+
+        Switch($Action){
+            1 { AddUsertoDistributionGroup -UPN $UPN }
+            2 { RemoveUsertoDistributionGroup -UPN $UPN }
+            3 { Exit }
+            Default{
+                Write-Host "No action found. Please provide valid input" -ForegroundColor Red
+                DisconnectModules
+            }
+        }
+    }else{
+        Write-Host "$UPN has no mailbox"
+    }
+
+}
+
+
+
 Function CheckEmailDelegation{}
 Function DelegateUser{}
 Function CheckInboxRules{}
@@ -1034,11 +1100,10 @@ Function main {
     Write-Host "           3.  Auto Expand Online Archive" -ForegroundColor Yellow
     Write-Host "           4.  Export Users" -ForegroundColor Yellow
     Write-Host "           5.  Export Users with License only" -ForegroundColor Yellow
-    Write-Host "           6.  Check Joined Distribution Groups of User" -ForegroundColor Yellow
-    Write-Host "           7.  Add User to Distribution Group" -ForegroundColor Yellow
-    Write-Host "           8.  Check Email Delegation of User" -ForegroundColor Yellow
-    Write-Host "           9.  Delegate User to Another" -ForegroundColor Yellow
-    Write-Host "           10.  Check/Delete Inbox Rules" -ForegroundColor Yellow
+    Write-Host "           6.  Check/Add/Remove User to Distribution Group" -ForegroundColor Yellow
+    Write-Host "           7.  Check Email Delegation of User" -ForegroundColor Yellow
+    Write-Host "           8.  Delegate User to Another" -ForegroundColor Yellow
+    Write-Host "           9.  Check/Delete Inbox Rules" -ForegroundColor Yellow
 
     
     $Action=Read-Host "`nPlease choose the action to continue"
@@ -1055,10 +1120,9 @@ Function main {
         4 { ExportUsers ; break }
         5 { ExportUsersWithLicense ; break }
         6 { CheckDistributionGroups ; break }
-        7 { AddDistributionGroupstoUser break }
-        8 { CheckEmailDelegation ; break }
-        9 { DelegateUser ; break }
-        10 { CheckInboxRules ; break }
+        7 { CheckEmailDelegation ; break }
+        8 { DelegateUser ; break }
+        9 { CheckInboxRules ; break }
         Default{
             Write-Host "No action found. Please provide valid input" -ForegroundColor Red
             DisconnectModules
